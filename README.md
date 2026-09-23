@@ -47,6 +47,7 @@ MikuQuiz/
 <details>
   <summary>Pack De Preguntas</summary>
   [Link Directo](https://github.com/k4927789-wq/Preguntas)
+
   
   Link escrito 
   ```
