@@ -47,7 +47,7 @@ const HostGame = {
           return;
         }
         st.players.set(conn, { name: hello.name, color: hello.color, emoji: hello.emoji, score: 0, answered: false, blocked: false, view: null, stealPending: false, stealTimer: null,
-          avatar: hello.avatar || null });
+          avatar: hello.avatar || null, admin: false });
         st.refreshPlayers();
         st.broadcastLobby();
       },
@@ -68,7 +68,7 @@ const HostGame = {
   },
 
   playersList() {
-    return [...this.players.values()].map(p => ({ name: p.name, color: p.color, emoji: p.emoji, score: p.score, blocked: !!p.blocked, avatar: p.avatar || null }));
+    return [...this.players.values()].map(p => ({ name: p.name, color: p.color, emoji: p.emoji, score: p.score, blocked: !!p.blocked, avatar: p.avatar || null, admin: !!p.admin }));
   },
 
   broadcastLobby() {
@@ -88,6 +88,40 @@ const HostGame = {
   /* ---------- mensajes de jugadores ---------- */
   handleData(conn, msg) {
     if (!msg) return;
+    if (msg.t === "chat") {                        // 💬 mensaje del chat
+      const p = this.players.get(conn);
+      if (!p) return;
+      const text = String(msg.msg || "").trim().slice(0, 140);
+      if (!text) return;
+      const entry = { from: { name: p.name, color: p.color, emoji: p.emoji, avatar: p.avatar || null }, msg: text };
+      if (!this.started) {                         // lobby: chat libre para todos
+        this.chatLog.push(entry);
+        this.host.broadcast({ t: "chat", ...entry });
+        hostChatAdd(entry);
+      } else if (p.admin) {                        // en partida: solo admins
+        this.host.broadcast({ t: "chat", ...entry, admin: true });
+        logLine("💬 " + p.name + ": " + text);
+      } else {
+        this.host.send(conn, { t: "chatdenied" });
+      }
+      return;
+    }
+    if (msg.t === "redeem") {                      // 🛡️ canje de código de admin
+      const p = this.players.get(conn);
+      if (!p || p.admin) return;
+      const code = String(msg.code || "").trim().toUpperCase();
+      if (this.codes.get(code) === p.name) {
+        this.codes.delete(code);
+        p.admin = true;
+        this.host.send(conn, { t: "adminok" });
+        this.host.broadcast({ t: "adminon", name: p.name });
+        logLine("🛡️ " + p.name + " ahora es admin");
+        this.broadcastScores();
+      } else {
+        this.host.send(conn, { t: "adminbad" });
+      }
+      return;
+    }
     if (msg.t === "stealpick" && this.started) {   // el jugador eligió a quién robar
       const p = this.players.get(conn);
       if (p && p.stealPending) this.doTransfer(p, msg.victim);
@@ -179,6 +213,8 @@ const HostGame = {
   /* ---------- preguntas ---------- */
   editing: null,   // índice de la pregunta que se está editando
   requireScreen: false,    // 🔒 si es true, sin pantalla compartida no se puede responder
+  chatLog: [],             // 💬 mensajes del chat del lobby
+  codes: new Map(),        // 🛡️ código -> nombre (códigos de admin pendientes)
   streams: new Map(),      // nombre -> MediaStream (pantalla del jugador)
   bigView: null,           // nombre del jugador en vista grande
   packs: loadPacks(),      // packs guardados { nombre: {name, questions[]} }
@@ -265,6 +301,24 @@ const HostGame = {
   renderMon() {
     if (document.getElementById("monitor-modal")) renderMonitor(this);
     refreshBigView(this);
+  },
+
+  /* 🛡️ da/quita admin: genera un código que el jugador canjea en la rueda 🎡 */
+  grantAdmin(conn, p) {
+    if (p.admin) {                                 // quitar admin
+      p.admin = false;
+      this.host.broadcast({ t: "adminoff", name: p.name });
+      logLine("❌ admin quitado a " + p.name);
+      this.broadcastScores();
+      this.renderMon();
+      return;
+    }
+    const code = makeCode();
+    this.codes.set(code, p.name);
+    this.host.send(conn, { t: "admincode", code: code });   // le sale en su ventanita flotante
+    toast("🛡️ Código de admin enviado a " + p.name);
+    logLine("🛡️ código de admin generado para " + p.name);
+    this.renderMon();
   },
 
   /* 🖥️ llama al jugador para ver su pantalla en vivo */
@@ -406,6 +460,14 @@ function renderHostLobby(st) {
 
     <h2 class="title" style="margin-top:22px">👥 Jugadores (<span id="host-count">0</span>)</h2>
     <div class="players" id="host-players"></div>
+    <div class="chat-box">
+      <h2 class="title" style="font-size:19px">💬 Chat de la sala</h2>
+      <div class="chat-messages" id="host-chat-messages"></div>
+      <div class="row" style="margin-top:8px">
+        <input id="host-chat-input" placeholder="Escribe un mensaje a los jugadores..." maxlength="140">
+        <button class="btn small" id="btn-host-chat-send" style="flex:0 0 auto">➤</button>
+      </div>
+    </div>
 
     <div class="q-editor">
       <h2 class="title">📦 Pack de preguntas</h2>
@@ -513,6 +575,21 @@ function renderHostLobby(st) {
     st.cleanup(); goHome();
   };
 
+  document.getElementById("btn-host-chat-send").onclick = () => {
+    const inp = document.getElementById("host-chat-input");
+    const t = inp.value.trim();
+    if (!t) return;
+    const myColor = getComputedStyle(document.body).getPropertyValue("--miku").trim() || "#39C5BB";
+    const entry = { from: { name: st.me, color: myColor, emoji: "🎤", avatar: null }, msg: t };
+    st.chatLog.push(entry);
+    if (st.host) st.host.broadcast({ t: "chat", ...entry });
+    hostChatAdd(entry);
+    inp.value = "";
+  };
+  document.getElementById("host-chat-input").onkeydown = e => {
+    if (e.key === "Enter") document.getElementById("btn-host-chat-send").click();
+  };
+
   document.getElementById("btn-new-pack").onclick = () => {
     const name = prompt("Nombre del nuevo pack (máx 60 preguntas):", "Mi pack Miku");
     if (name !== null) st.createPack(name);
@@ -526,6 +603,20 @@ function renderHostLobby(st) {
 function refreshStartBtn(st) {
   const btn = document.getElementById("btn-start");
   if (btn) btn.disabled = !(st.questions.length > 0 && st.host);
+}
+
+/* 💬 agrega un mensaje al chat del creador (lobby) */
+function hostChatAdd(e) {
+  const box = document.getElementById("host-chat-messages");
+  if (!box) return;
+  const d = document.createElement("div");
+  d.className = "chat-msg";
+  d.innerHTML = `<span class="dot" style="background:${e.from.color}"></span>${e.from.avatar
+      ? `<img class="avatar" style="width:20px;height:20px" src="${esc(e.from.avatar)}">`
+      : `<span>${esc(e.from.emoji)}</span>`}
+    <b style="color:${e.from.color}">${esc(e.from.name)}:</b> <span>${esc(e.msg)}</span>`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
 }
 
 /* avatar del jugador: foto de perfil o emoji */
@@ -659,6 +750,7 @@ function renderMonitor(st) {
         <div class="mon-status ${inf.scls}">${inf.stxt}</div>
       </div>
       <div class="row mon-btns">
+        <button class="btn small ghost" data-admin="${esc(p.name)}">${p.admin ? "❌ Admin" : "🛡️ Admin"}</button>
         <button class="btn small ghost" data-watch="${esc(p.name)}">${hasVideo ? "🖥️ Viendo" : "🖥️ Pantalla"}</button>
         <button class="btn small ghost" data-big="${esc(p.name)}">🔍 Grande</button>
         <button class="btn small ${p.blocked ? '' : 'danger'}" data-blk="${esc(p.name)}">${p.blocked ? "✅ Desbloquear" : "🚫 Bloquear"}</button>
@@ -670,6 +762,10 @@ function renderMonitor(st) {
 
   attachMonStreams();
   const byName = n => ps.find(([, p]) => p.name === n);
+  g.querySelectorAll("[data-admin]").forEach(b => b.onclick = () => {
+    const found = byName(b.dataset.admin);
+    if (found) st.grantAdmin(found[0], found[1]);
+  });
   g.querySelectorAll("[data-watch]").forEach(b => b.onclick = () => {
     const found = byName(b.dataset.watch);
     if (found) st.watchPlayer(found[0], found[1].name);
@@ -935,6 +1031,7 @@ function renderHostScores(st, list) {
       <span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
       <b>${esc(p.name)}</b>
       ${p.blocked?'<span class="badge first" style="background:#ff6b6b">🚫</span>':''}
+      ${p.admin?'<span class="badge first" style="background:#8e6bff">🛡️</span>':''}
       ${won?'<span class="badge win">🏆 GANÓ</span>':isLeader?'<span class="badge first">👈 va en 1er lugar</span>':''}
       <span class="pts">${p.score} pts</span></div>`;
   }).join("") || `<div class="hint">Sin jugadores aún</div>`;
