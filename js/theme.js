@@ -16,8 +16,8 @@ const THEMES = {
   teto: {
     id: "teto",
     name: "Kasane Teto",
-    icon: "https://files.catbox.moe/z1wcqk.jpeg",
-    banner: "https://files.catbox.moe/syw0zn.jpeg",
+    icon: "https://i.ibb.co/XZnM29KK/images-1.jpg",
+    banner: "https://i.ibb.co/zDzn6fF/images-3.jpg",
     autoNext: true
   }
 };
