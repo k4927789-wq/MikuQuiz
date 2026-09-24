@@ -18,13 +18,18 @@ const PlayerGame = {
   blocked: false,
   stream: null,        // pantalla compartida (video)
   pendingCall: null,   // llamada del creador esperando aceptación
+  started: false,      // ¿la partida ya empezó?
+  isAdmin: false,      // 🛡️ puede chatear durante la partida
+  chatLog: [],         // 💬 mensajes recibidos
+  unread: 0,           // mensajes sin leer (insignia de la rueda)
 
   join(code) {
     const st = this;
     this.client = new Client(code, {
       onOpen() {
         document.getElementById("join-status").textContent = "🟢 Conectado · esperando al creador...";
-        st.client.send({ t: "join", name: st.me.name, color: st.me.color, emoji: st.me.emoji });
+        st.client.send({ t: "join", name: st.me.name, color: st.me.color, emoji: st.me.emoji, avatar: st.me.avatar || null });
+        ensureChatWheel();
       },
       onData(m) { st.handle(m); },
       onClose() {
@@ -49,6 +54,7 @@ const PlayerGame = {
       case "start":
         if (m.theme) applyTheme(m.theme);
         this.target = m.target;
+        this.started = true;
         renderPlayerGameShell();
         setTimeout(() => inviteShare(false), 600);   // invita a activar la cámara al empezar
         break;
@@ -79,10 +85,36 @@ const PlayerGame = {
         break;
       }
       case "end":
+        this.started = false;
         renderPlayerEnd(m);
         break;
       case "blocked":
         this.applyBlocked(m);
+        break;
+      case "chat":                       // 💬 mensaje del chat
+        this.chatLog.push({ from: m.from, msg: m.msg, admin: !!m.admin });
+        if (document.getElementById("chat-panel")) renderChatMessages();
+        else { this.unread++; updateWheelBadge(); }
+        break;
+      case "chatdenied":
+        toast("🔒 Solo los admins pueden chatear durante la partida");
+        break;
+      case "admincode":                  // 🛡️ el creador me dio un código
+        showAdminCode(m.code);
+        break;
+      case "adminok":
+        this.isAdmin = true;
+        toast("🛡️ ¡Código canjeado! Eres admin — chat público desbloqueado");
+        { const cp = document.getElementById("chat-panel"); if (cp) cp.remove(); }
+        break;
+      case "adminbad":
+        toast("Código incorrecto ❌");
+        break;
+      case "adminon":
+        toast("🛡️ " + m.name + " ahora es admin de la sala");
+        break;
+      case "adminoff":
+        toast(m.name + " ya no es admin");
         break;
       case "needscreen":
         toast("🔒 El creador exige pantalla compartida para responder. Pulsa 🖥️ Cámara anti-trampas");
@@ -134,6 +166,8 @@ const PlayerGame = {
   destroy() {
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
     if (this.client) { this.client.destroy(); this.client = null; }
+    ["chat-wheel", "chat-panel", "admin-code-float"].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); });
+    this.started = false; this.isAdmin = false; this.chatLog = []; this.unread = 0;
   }
 };
 
@@ -205,6 +239,102 @@ function renderJoinForm(code) {
   document.getElementById("btn-back").onclick = goHome;
 }
 
+/* ---------- 💬 RUEDA DE CHAT + 🛡️ CANJE DE ADMIN ---------- */
+function ensureChatWheel() {
+  if (document.getElementById("chat-wheel")) return;
+  const b = document.createElement("button");
+  b.id = "chat-wheel";
+  b.title = "Chat de la sala";
+  b.innerHTML = `🎡<span id="wheel-badge" class="hidden"></span>`;
+  b.onclick = toggleChatPanel;
+  document.body.appendChild(b);
+}
+function updateWheelBadge() {
+  const b = document.getElementById("wheel-badge");
+  if (!b) return;
+  b.textContent = PlayerGame.unread || "";
+  b.classList.toggle("hidden", !PlayerGame.unread);
+}
+function toggleChatPanel() {
+  const ex = document.getElementById("chat-panel");
+  if (ex) { ex.remove(); return; }
+  PlayerGame.unread = 0; updateWheelBadge();
+  const canChat = !PlayerGame.started || PlayerGame.isAdmin;
+  const d = document.createElement("div");
+  d.className = "modal-overlay";
+  d.id = "chat-panel";
+  d.innerHTML = `<div class="modal-card" style="max-width:480px;display:flex;flex-direction:column;max-height:75vh">
+    <h2 class="title">💬 Chat de la sala</h2>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="row" style="margin-top:8px">
+      <input id="chat-input" placeholder="Escribe un mensaje..." maxlength="140" ${canChat ? "" : "disabled"}>
+      <button class="btn small" id="btn-chat-send" style="flex:0 0 auto" ${canChat ? "" : "disabled"}>➤</button>
+    </div>
+    <div class="hint" style="margin-top:6px">${canChat
+      ? (PlayerGame.isAdmin ? "🛡️ Eres admin: puedes chatear aunque la partida esté en curso"
+                            : "Chat libre para todos mientras esperan al creador")
+      : "🔒 Durante la partida el chat es solo para admins — canjea tu código 🛡️ abajo"}</div>
+    <div id="admin-redeem" class="${PlayerGame.isAdmin ? "hidden" : ""}" style="margin-top:10px">
+      <label style="margin:0 0 4px">🛡️ Pon tu código de admin</label>
+      <div class="hint" style="margin:0 0 6px">El creador decide quién es admin — si no tienes código, pídeselo 🔑</div>
+      <div class="row">
+        <input id="admin-code" placeholder="Pega tu código aquí" style="text-transform:uppercase">
+        <button class="btn small secondary" id="btn-redeem" style="flex:0 0 auto">Desbloquear</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelector("#btn-chat-send").onclick = () => {
+    const inp = d.querySelector("#chat-input");
+    const t = inp.value.trim();
+    if (!t) return;
+    PlayerGame.client.send({ t: "chat", msg: t });
+    inp.value = "";
+  };
+  d.querySelector("#chat-input").onkeydown = e => {
+    if (e.key === "Enter") d.querySelector("#btn-chat-send").click();
+  };
+  d.querySelector("#btn-redeem").onclick = () => {
+    const c = d.querySelector("#admin-code").value.trim().toUpperCase();
+    if (c) PlayerGame.client.send({ t: "redeem", code: c });
+  };
+  renderChatMessages();
+}
+function renderChatMessages() {
+  const box = document.getElementById("chat-messages");
+  if (!box) return;
+  box.innerHTML = PlayerGame.chatLog.map(e => `<div class="chat-msg">
+    <span class="dot" style="background:${e.from.color}"></span>${e.from.avatar
+      ? `<img class="avatar" style="width:20px;height:20px" src="${esc(e.from.avatar)}">`
+      : `<span>${esc(e.from.emoji)}</span>`}
+    <b style="color:${e.from.color}">${esc(e.from.name)}${e.admin ? " 🛡️" : ""}:</b>
+    <span>${esc(e.msg)}</span></div>`).join("")
+    || `<div class="hint">Aún no hay mensajes — saluda 👋</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+/* 🛡️ ventanita flotante con el código de admin (estilo bloqueo) */
+function showAdminCode(code) {
+  closeAdminCode();
+  const d = document.createElement("div");
+  d.className = "admin-code-float";
+  d.id = "admin-code-float";
+  d.innerHTML = `
+    <button class="acf-close" id="acf-close" title="Cerrar">✖</button>
+    <div class="acf-title">🛡️ ¡El creador te dio ADMIN!</div>
+    <div class="acf-label">TU CÓDIGO:</div>
+    <div class="acf-code">${esc(code)}</div>
+    <button class="btn small" id="acf-copy" style="width:100%">📋 Copiar código</button>
+    <div class="acf-hint">Ábrelo en la rueda 🎡 y pégalo ahí para desbloquear el chat público</div>`;
+  document.body.appendChild(d);
+  d.querySelector("#acf-close").onclick = closeAdminCode;
+  d.querySelector("#acf-copy").onclick = () => {
+    navigator.clipboard?.writeText(code);
+    toast("Código copiado 📋");
+  };
+}
+function closeAdminCode() { const el = document.getElementById("admin-code-float"); if (el) el.remove(); }
+
 /* foto de la galería -> dataURL redimensionado (128px) para el avatar */
 function fileToAvatar(file) {
   return new Promise((res, rej) => {
@@ -237,6 +367,7 @@ function renderPlayerWaiting() {
     <h2 class="title" style="margin-top:20px">👥 En la sala</h2>
     <div class="players" id="p-lobby"></div>
     <p class="hint" style="margin-top:16px">El creador inicia la partida cuando quiera... 🎵</p>
+    <p class="hint" style="margin-top:6px">💬 Mientras tanto, chatea con todos desde la rueda 🎡 (abajo a la derecha)</p>
   </div></div>`;
 }
 
