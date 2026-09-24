@@ -42,7 +42,7 @@ const HostGame = {
       },
       onJoin(conn, hello) {
         if (st.started) { // partida en curso: no entrar
-          st.host.send(conn, { t: "error", msg: "La partida ya empezó 😅" });
+          st.host.send(conn, { t: "error", msg: "La partida ya empezó" });
           setTimeout(() => st.host.kick(conn), 600);
           return;
         }
@@ -571,7 +571,7 @@ function renderHostLobby(st) {
   };
 
   document.getElementById("btn-cancel").onclick = () => {
-    st.host && st.host.broadcast({ t: "error", msg: "El creador cerró la sala 👋" });
+    st.host && st.host.broadcast({ t: "error", msg: "El creador cerró la sala" });
     st.cleanup(); goHome();
   };
 
