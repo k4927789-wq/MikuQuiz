@@ -1,38 +1,80 @@
-# 🎤 MikuQuiz
+<div align="center">
 
-Quizlet multijugador  **Hatsune Miku**. Creado por **Chizu**.
+  <!-- Logo principal -->
+  <img src="https://files.catbox.moe/enh24e.jpeg" alt="MikuQuiz Icon" width="120" style="border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"/>
 
-## ✨ Características
--  **Iniciar partida**: creas una sala, agregas preguntas (texto + imagen/banner, 4 respuestas, 1 correcta) y configuras duración y puntos meta (máx **9000**).
--  **Unirse a partida**: los jugadores entran con el **código de sala** y un **nombre personalizable** (color + emoji).
--  Correcta = **+5 pts** ·  Incorrecta = **−4 pts** + **espera de 5 segundos**.
--  Al conseguir **15 puntos** robas **4 pts** al líder.
--  Gana quien llegue a la meta o el mejor al acabar el tiempo. Las preguntas **se repiten** en bucle.
--  El creador ve los puntajes en vivo, quién va en primer lugar y quién ganó, y controla el inicio/fin.
-- � **Elige tu Vocaloid**: **Miku** (modo clásico, el creador pasa las preguntas) o **Teto** (temática roja + las preguntas **avanzan solas** cuando todos responden). Los jugadores que se unen ven el tema de la sala automáticamente. Al elegir personaje aparece una **animación de carga** que precarga todo.
--  **Respuestas revueltas**: cada jugador recibe las 4 opciones en un orden distinto, la correcta nunca está siempre en la primera.
--  **Editar preguntas**: las preguntas ya guardadas se pueden modificar o borrar desde la lista (modos Miku y Teto).
--  **Packs de preguntas**: máximo **60 preguntas por pack**. Crea un pack con nombre, guárdalo, **cárgalo para jugar**, **descárgalo** como archivo `.json` e **impórtalo** de vuelta desde " Agregar pack".
--  **Cámara del creador**: el creador ve en vivo la **pantalla real** de cada jugador ( el jugador comparte su pantalla y se ve el ratón, si sube, si abre otra ventana — trampas imposibles; en celular se ve solo lo que selecciona). Vista en tarjetas + **🔍 vista grande**. Desde ahí puede **🚫 bloquear con motivo personalizado** (el jugador ve "(creador) te bloqueó por (motivo)") y **➕ dar / ➖ quitar puntos**.
--  **Puntajes privados**: solo el creador ve los puntos de todos; cada jugador solo ve los suyos.
+  # MikuQuiz
 
-## 🚀 Cómo usarlo (GitHub Pages)
-1. Sube esta carpeta a un repositorio de GitHub.
-2. En **Settings → Pages** selecciona la rama `main` y la carpeta raíz.
-3. Abre la URL que te dé GitHub. ¡Listo!
+  **Plataforma de Quizlet Multijugador Interactivo Temático**
 
-## 🕹️ Cómo jugar
-1. El creador entra, pone su nombre, crea la sala y comparte el **código**.
-2. Agrega preguntas y pulsa **🎮 START**.
-3. Los jugadores entran con el código + su nombre personalizado.
+  <!-- Banner principal -->
+  <br/>
+  <img src="https://files.catbox.moe/jpurxi.jpeg" alt="MikuQuiz Banner" width="100%" style="border-radius: 10px;"/>
+  <br/><br/>
 
-> ⚠️ El multijugador funciona por **WebRTC (PeerJS)**. Todos deben tener conexión a internet. Si un navegador tiene bloqueadores estrictos, puede pedir permisos.
+  [![GitHub release](https://img.shields.io/badge/Release-v1.0.0-39C5BB?style=for-the-badge)](https://github.com/)
+  [![License](https://img.shields.io/badge/License-MIT-008080?style=for-the-badge)](https://github.com/)
+  [![PeerJS](https://img.shields.io/badge/Network-WebRTC%20%2F%20PeerJS-E056FD?style=for-the-badge)](https://peerjs.com/)
+  [![Status](https://img.shields.io/badge/Status-Active-2ECC71?style=for-the-badge)](https://github.com/)
 
-## 📁 Estructura
-```
-MikuQuiz
-que estructura wey, esto tiene derechos de autor cuidado que si me lo robas de cobro ya que es mio cuidado.
-```
+  *Diseñado y desarrollado por **Chizu***
+
+  <a href="#-demostración-en-vivo">Demostración</a> •
+  <a href="#-modos-de-juego-y-temáticas">Modos de Juego</a> •
+  <a href="#-características-principales">Características</a> •
+  <a href="#-mecánicas-de-juego">Mecánicas</a> •
+  <a href="#-despliegue-en-github-pages">Despliegue</a>
+
+</div>
 
 ---
-🎵 MikuQuiz · Creado por **Chizu** 🎵
+
+## Demostración en Vivo
+
+<div align="center">
+
+  <img src="https://files.catbox.moe/ageb1w.gif" alt="MikuQuiz Gameplay GIF" width="80%" style="border-radius: 8px; border: 2px solid #39C5BB;"/>
+
+  <p><i>Vista previa del flujo de juego y animaciones en pantalla.</i></p>
+
+</div>
+
+---
+
+## Modos de Juego y Temáticas
+
+MikuQuiz cuenta con dos modalidades dinámicas adaptadas al ritmo de cada sala, acompañadas de animaciones de carga personalizadas:
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <h3>Modo Clásico (Miku)</h3>
+      <p>El host o creador gestiona manualmente el avance de las preguntas a su propio ritmo. Ideal para eventos en vivo, exposiciones o dinámicas guiadas.</p>
+      <p><b>Estilo:</b> <i>Turquesa Clásico / Miku</i></p>
+    </td>
+    <td width="50%" align="center">
+      <h3>Modo Automático (Teto)</h3>
+      <p>Las preguntas avanzan automáticamente en el momento exacto en que todos los participantes envían su respuesta.</p>
+      <p><b>Estilo:</b> <i>Rojo Intenso / Teto</i></p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Características Principales
+
+* **Sistema de Salas P2P:** Creación de salas personalizadas sin necesidad de backend centralizado gracias a la tecnología WebRTC.
+* **Personalización de Jugadores:** Elección de paleta de colores y nombre de usuario al ingresar mediante código de sala.
+* **Cámara e Inspección en Vivo (Host):** El creador puede monitorear la pantalla en tiempo real de cada jugador (detección de cambio de pestaña, movimientos de ratón o selección en móviles) mediante tarjetas interactivas y vista ampliada.
+* **Panel de Control Avanzado:** Permite al creador bloquear participantes con motivos personalizados, además de otorgar o remover puntos de forma manual durante la sesión.
+* **Respuestas Aleatorias:** Algoritmo de mezcla independiente para cada jugador; la opción correcta cambia de posición dinámicamente.
+* **Gestión de Preguntas y Packs:** Compatibilidad para la edición en vivo de reactivos, importación y exportación de cuestionarios en formato `.json` (hasta 60 preguntas por pack).
+* **Privacidad de Puntajes:** La tabla general de posiciones permanece visible únicamente para el host de la sesión.
+
+---
+
+## Mecánicas de Juego
+
+<div align="center">
+
