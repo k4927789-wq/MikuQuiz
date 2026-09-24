@@ -46,7 +46,8 @@ const HostGame = {
           setTimeout(() => st.host.kick(conn), 600);
           return;
         }
-        st.players.set(conn, { name: hello.name, color: hello.color, emoji: hello.emoji, score: 0, answered: false, blocked: false, view: null });
+        st.players.set(conn, { name: hello.name, color: hello.color, emoji: hello.emoji, score: 0, answered: false, blocked: false, view: null, stealPending: false, stealTimer: null,
+          avatar: hello.avatar || null });
         st.refreshPlayers();
         st.broadcastLobby();
       },
@@ -67,7 +68,7 @@ const HostGame = {
   },
 
   playersList() {
-    return [...this.players.values()].map(p => ({ name: p.name, color: p.color, emoji: p.emoji, score: p.score, blocked: !!p.blocked }));
+    return [...this.players.values()].map(p => ({ name: p.name, color: p.color, emoji: p.emoji, score: p.score, blocked: !!p.blocked, avatar: p.avatar || null }));
   },
 
   broadcastLobby() {
@@ -87,6 +88,11 @@ const HostGame = {
   /* ---------- mensajes de jugadores ---------- */
   handleData(conn, msg) {
     if (!msg) return;
+    if (msg.t === "stealpick" && this.started) {   // el jugador eligió a quién robar
+      const p = this.players.get(conn);
+      if (p && p.stealPending) this.doTransfer(p, msg.victim);
+      return;
+    }
     if (msg.t === "view") {   // el jugador reporta su pantalla (para la cámara)
       const p = this.players.get(conn);
       if (p) { p.view = msg; this.renderMon(); }
@@ -111,10 +117,10 @@ const HostGame = {
       const before = p.score;
       p.score = Math.max(0, p.score + (ok ? 5 : -4));
 
-      let steal = null;
-      // Robo: al cruzar cada múltiplo de 15 puntos, roba al líder
+      const steal = null;
+      // 🔥 Robo: al cruzar cada múltiplo de 15 pts, el jugador elige a quién robarle
       if (Math.floor(p.score / STEAL_EVERY) > Math.floor(before / STEAL_EVERY)) {
-        steal = this.doSteal(p);
+        this.offerSteal(p, conn);
       }
 
       this.host.send(conn, { t: "res", ok, gain: ok ? 5 : -4, correct: p.curCorrect, score: p.score, steal });
@@ -127,19 +133,40 @@ const HostGame = {
     }
   },
 
-  doSteal(stealer) {
-    // víctima = el que más puntos tenga (que no sea el ladrón)
-    let victim = null, best = -1;
-    this.players.forEach((pl) => {
-      if (pl !== stealer && pl.score > best) { best = pl.score; victim = pl; }
+  /* 🔥 al cruzar 15 pts: se abre la pestaña para que elija víctima */
+  offerSteal(p, conn) {
+    const candidates = [...this.players.values()].filter(v => v !== p && v.score > 0);
+    if (!candidates.length) { logLine("🔥 " + p.name + " llegó a 15 pts pero nadie tenía puntos que robar"); return; }
+    p.stealPending = true;
+    this.host.send(conn, {
+      t: "stealoffer",
+      amount: STEAL_AMOUNT,
+      players: candidates.map(v => ({ name: v.name, color: v.color, emoji: v.emoji, score: v.score }))
     });
-    if (!victim || best <= 0) return null;
+    clearTimeout(p.stealTimer);
+    p.stealTimer = setTimeout(() => {   // no eligió: se roba automáticamente al líder
+      if (!p.stealPending) return;
+      const best = [...this.players.values()].filter(v => v !== p && v.score > 0)
+        .sort((a, b) => b.score - a.score)[0];
+      if (best) this.doTransfer(p, best.name);
+    }, 20000);
+  },
+
+  /* ejecuta el robo (elección del jugador o automático) */
+  doTransfer(stealer, victimName) {
+    const victim = [...this.players.values()].find(v => v.name === victimName && v !== stealer);
+    if (!victim || victim.score <= 0) { stealer.stealPending = false; return null; }
+    stealer.stealPending = false;
+    clearTimeout(stealer.stealTimer);
     const amount = Math.min(STEAL_AMOUNT, victim.score);
     victim.score -= amount;
     stealer.score += amount;
     const event = { stealer: stealer.name, victim: victim.name, amount };
     this.host.broadcast({ t: "steal", ...event });
-    logLine(`🔥 ${stealer.name} robó ${amount} pts a ${victim.name}`);
+    logLine("🔥 " + stealer.name + " robó " + amount + " pts a " + victim.name);
+    this.broadcastScores();
+    const winner = [...this.players.values()].find(pl => pl.score >= this.settings.target);
+    if (winner) this.endGame(winner.name, "meta");
     return event;
   },
 
@@ -424,7 +451,7 @@ function renderHostLobby(st) {
         <input id="set-target" type="number" min="5" max="${MAX_TARGET}" value="${st.settings.target}">
       </div>
     </div>
-    <div class="hint">✅ Correcta = +5 pts · ❌ Incorrecta = −4 pts y espera 5 s · 🔥 Al llegar a 15 pts robas 4 al líder</div>
+    <div class="hint">✅ Correcta = +5 pts · ❌ Incorrecta = −4 pts y espera 5 s · 🔥 Al llegar a 15 pts eliges a quién robarle 4</div>
 
     <div class="row" style="margin-top:20px">
       <button class="btn" id="btn-start" disabled>🎮 ¡START!</button>
@@ -501,13 +528,20 @@ function refreshStartBtn(st) {
   if (btn) btn.disabled = !(st.questions.length > 0 && st.host);
 }
 
+/* avatar del jugador: foto de perfil o emoji */
+function avatarHtml(p) {
+  return p.avatar
+    ? `<img class="avatar" src="${esc(p.avatar)}" alt="avatar">`
+    : `<span>${esc(p.emoji)}</span>`;
+}
+
 function renderHostPlayers(st) {
   const box = document.getElementById("host-players");
   if (!box) return;
   document.getElementById("host-count").textContent = st.players.size;
   box.innerHTML = [...st.players.values()].map(p => `
     <div class="player-chip"><span class="dot" style="background:${p.color}"></span>
-      <span>${p.emoji}</span><b>${esc(p.name)}</b></div>`).join("")
+      ${avatarHtml(p)}<b>${esc(p.name)}</b></div>`).join("")
     || `<div class="hint">Esperando jugadores... comparte el código 🎵</div>`;
 }
 HostGame.refreshPlayers = function(){ renderHostPlayers(this); };
@@ -615,7 +649,7 @@ function renderMonitor(st) {
     const inf = getViewInfo(st, p);
     const hasVideo = st.streams.has(p.name);
     return `<div class="mon-card ${p.blocked ? 'mon-blocked' : ''} ${hasVideo ? 'mon-has-video' : ''}">
-      <div class="mon-head"><span class="dot" style="background:${p.color}"></span><span>${p.emoji}</span>
+      <div class="mon-head"><span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
         <b>${esc(p.name)}</b><span class="pts">${p.score} pts</span></div>
       <div class="mon-screen">
         <video class="mon-video" data-vid="${esc(p.name)}" autoplay playsinline muted></video>
@@ -898,7 +932,7 @@ function renderHostScores(st, list) {
     const isLeader = p.name === leader && p.score > 0;
     const won = p.score >= st.settings.target;
     return `<div class="sb-row ${isLeader?'leader':''}">
-      <span class="dot" style="background:${p.color}"></span><span>${p.emoji}</span>
+      <span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
       <b>${esc(p.name)}</b>
       ${p.blocked?'<span class="badge first" style="background:#ff6b6b">🚫</span>':''}
       ${won?'<span class="badge win">🏆 GANÓ</span>':isLeader?'<span class="badge first">👈 va en 1er lugar</span>':''}
@@ -914,7 +948,7 @@ function renderHostEnd(st, winner, reason, scores) {
     <div class="scoreboard" style="max-width:420px;margin:18px auto;text-align:left">
       ${scores.map((p,i)=>`<div class="sb-row ${i===0?'leader':''}">
         <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'🎵'}</span>
-        <span class="dot" style="background:${p.color}"></span><span>${p.emoji}</span>
+        <span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
         <b>${esc(p.name)}</b><span class="pts">${p.score} pts</span></div>`).join("")}
     </div>
     <div class="row" style="max-width:420px;margin:0 auto">
