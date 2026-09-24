@@ -30,16 +30,8 @@ Quizlet multijugador  **Hatsune Miku**. Creado por **Chizu**.
 
 ## 📁 Estructura
 ```
-MikuQuiz/
-├── index.html
-├── css/
-│   └── style.css
-├── js/
-│   ├── net.js      (conexión P2P con PeerJS)
-│   ├── host.js     (vista del creador)
-│   ├── player.js   (vista del jugador)
-│   └── main.js     (inicio y navegación)
-└── assets/
+MikuQuiz
+que estructura wey, esto tiene derechos de autor cuidado que si me lo robas de cobro ya que es mio cuidado.
 ```
 
 ---
