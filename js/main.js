@@ -18,12 +18,12 @@ function renderHome() {
     <h2 class="voca-title">🎤 Elige tu Vocaloid 🎤</h2>
   <div class="voca-picker">
     <button class="voca-card ${CURRENT_THEME==='miku'?'on':''}" data-v="miku">
-      <img src="https://files.catbox.moe/csutoy.jpeg" alt="Miku">
+      <img src="https://i.ibb.co/6cRHLWKB/images.jpg" alt="Miku">
       <b>Hatsune Miku</b>
       <small>Modo clásico: el creador pasa cada pregunta con el botón</small>
     </button>
     <button class="voca-card teto ${CURRENT_THEME==='teto'?'on':''}" data-v="teto">
-      <img src="https://files.catbox.moe/2cxidc.jpeg" alt="Teto">
+      <img src="https://i.ibb.co/nNfJ4zJn/images-2.jpg" alt="Teto">
       <b>Kasane Teto</b>
       <small>Modo rápido: la pregunta pasa sola cuando todos responden</small>
     </button>
