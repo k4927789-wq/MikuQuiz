@@ -16,7 +16,7 @@ const THEMES = {
   teto: {
     id: "teto",
     name: "Kasane Teto",
-    icon: "https://i.ibb.co/XZnM29KK/images-1.jpg",
+    icon: "https://i.ibb.co/tTwJkvLh/images-4.jpg",
     banner: "https://i.ibb.co/zDzn6fF/images-3.jpg",
     autoNext: true
   }
