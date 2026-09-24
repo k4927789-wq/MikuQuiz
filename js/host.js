@@ -98,8 +98,8 @@ const HostGame = {
         this.chatLog.push(entry);
         this.host.broadcast({ t: "chat", ...entry });
         hostChatAdd(entry);
-      } else if (p.admin) {                        // en partida: solo admins
-        this.host.broadcast({ t: "chat", ...entry, admin: true });
+      } else if (p.admin) {                        // en partida: solo admins reciben y escriben
+        this.players.forEach((pl, c) => { if (pl.admin) this.host.send(c, { t: "chat", ...entry, admin: true }); });
         logLine("💬 " + p.name + ": " + text);
       } else {
         this.host.send(conn, { t: "chatdenied" });
