@@ -104,8 +104,9 @@ const PlayerGame = {
         break;
       case "adminok":
         this.isAdmin = true;
-        toast("🛡️ ¡Código canjeado! Eres admin — chat público desbloqueado");
-        { const cp = document.getElementById("chat-panel"); if (cp) cp.remove(); }
+        toast("🛡️ ¡Código aceptado! Chat desbloqueado 💬");
+        closeAdminCode();
+        { const cp = document.getElementById("chat-panel"); if (cp) cp.remove(); toggleChatPanel(); }
         break;
       case "adminbad":
         toast("Código incorrecto ❌");
@@ -273,7 +274,7 @@ function toggleChatPanel() {
     <div class="hint" style="margin-top:6px">${canChat
       ? (PlayerGame.isAdmin ? "🛡️ Eres admin: puedes chatear aunque la partida esté en curso"
                             : "Chat libre para todos mientras esperan al creador")
-      : "🔒 Durante la partida el chat es solo para admins — canjea tu código 🛡️ abajo"}</div>
+      : "🔒 El chat de partida es solo para admins — pon tu código 🛡️ abajo para desbloquearlo"}</div>
     <div id="admin-redeem" class="${PlayerGame.isAdmin ? "hidden" : ""}" style="margin-top:10px">
       <label style="margin:0 0 4px">🛡️ Pon tu código de admin</label>
       <div class="hint" style="margin:0 0 6px">El creador decide quién es admin — si no tienes código, pídeselo 🔑</div>
