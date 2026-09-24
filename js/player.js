@@ -63,7 +63,11 @@ const PlayerGame = {
         break;
       }
       case "steal":
+        if (m.stealer === this.me.name || m.victim === this.me.name) closeStealPanel();
         renderStealToast(m);
+        break;
+      case "stealoffer":
+        renderStealPanel(m);
         break;
       case "scores":
         this.scores = m.scores; this.target = m.target;
@@ -146,7 +150,15 @@ function renderJoinForm(code) {
       <input id="join-name" placeholder="Ej: MikuFan2007" maxlength="16"></div>
     <div class="field"><label>Tu color</label>
       <input id="join-color" type="color" value="#39C5BB" style="height:46px;padding:4px"></div>
-    <div class="field"><label>Tu emoji</label>
+    <div class="field"><label>Tu avatar (foto de la galería o emoji)</label>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+        <div id="avatar-preview" class="avatar-preview">🎤</div>
+        <div style="flex:1">
+          <button class="btn small secondary" id="btn-avatar-photo" style="width:100%">📷 Elegir foto</button>
+          <button class="btn small ghost hidden" id="btn-avatar-clear" style="width:100%;margin-top:6px">✖ Quitar foto</button>
+          <input type="file" id="avatar-file" accept="image/*" style="display:none">
+        </div>
+      </div>
       <div class="emoji-pick" id="emoji-pick">
         ${EMOJIS.map((e,i)=>`<button class="${i===0?'on':''}" data-e="${e}">${e}</button>`).join("")}
       </div></div>
@@ -157,27 +169,70 @@ function renderJoinForm(code) {
   </div>`;
 
   let emoji = EMOJIS[0];
+  let avatar = null;
+  const avatarPreview = document.getElementById("avatar-preview");
   document.querySelectorAll("#emoji-pick button").forEach(b => b.onclick = () => {
     emoji = b.dataset.e;
+    if (!avatar) avatarPreview.textContent = emoji;
     document.querySelectorAll("#emoji-pick button").forEach(x => x.classList.toggle("on", x === b));
   });
+  document.getElementById("btn-avatar-photo").onclick = () => document.getElementById("avatar-file").click();
+  document.getElementById("avatar-file").onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      avatar = await fileToAvatar(f);
+      avatarPreview.innerHTML = `<img class="avatar-preview-img" src="${avatar}">`;
+      document.getElementById("btn-avatar-clear").classList.remove("hidden");
+      toast("¡Foto de perfil lista! 📷");
+    } catch (err) { toast("No se pudo cargar la foto ❌"); }
+  };
+  document.getElementById("btn-avatar-clear").onclick = () => {
+    avatar = null;
+    avatarPreview.textContent = emoji;
+    document.getElementById("btn-avatar-clear").classList.add("hidden");
+  };
 
   document.getElementById("btn-join").onclick = () => {
     const c = document.getElementById("join-code").value.trim().toUpperCase();
     const n = document.getElementById("join-name").value.trim();
     if (!c) return toast("Pon el código de sala 🔑");
     if (!n) return toast("Pon tu nombre ✍️");
-    PlayerGame.me = { name: n, color: document.getElementById("join-color").value, emoji };
+    PlayerGame.me = { name: n, color: document.getElementById("join-color").value, emoji, avatar };
     renderPlayerWaiting();
     PlayerGame.join(c);
   };
   document.getElementById("btn-back").onclick = goHome;
 }
 
+/* foto de la galería -> dataURL redimensionado (128px) para el avatar */
+function fileToAvatar(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const ctx = c.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
+        res(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = rej;
+      img.src = r.result;
+    };
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
 function renderPlayerWaiting() {
   app().innerHTML = `
   <div id="player-view"><div class="card" style="max-width:560px;margin:40px auto;text-align:center">
-    <h2 class="title">🎧 ${esc(PlayerGame.me.emoji)} ${esc(PlayerGame.me.name)}</h2>
+    <h2 class="title">🎧 ${PlayerGame.me.avatar
+      ? `<img class="avatar" src="${PlayerGame.me.avatar}">`
+      : esc(PlayerGame.me.emoji)} ${esc(PlayerGame.me.name)}</h2>
     <div id="join-status" style="margin:10px 0;color:#bfe9e5">🟡 Conectando...</div>
     <h2 class="title" style="margin-top:20px">👥 En la sala</h2>
     <div class="players" id="p-lobby"></div>
@@ -190,7 +245,7 @@ function renderPlayerLobby(players) {
   if (!box) return;
   box.innerHTML = players.map(p => `
     <div class="player-chip"><span class="dot" style="background:${p.color}"></span>
-      <span>${p.emoji}</span><b>${esc(p.name)}</b></div>`).join("");
+      ${avatarHtml(p)}<b>${esc(p.name)}</b></div>`).join("");
 }
 
 function renderPlayerGameShell() {
@@ -295,6 +350,32 @@ function showPenalty() {
   }, 1000);
 }
 
+/* 🔥 pestaña para elegir a quién robar (se abre al llegar a 15 pts) */
+function renderStealPanel(m) {
+  closeStealPanel();
+  const d = document.createElement("div");
+  d.className = "modal-overlay";
+  d.id = "steal-panel";
+  d.innerHTML = `<div class="modal-card" style="max-width:460px;text-align:center">
+    <h2 class="title">🔥 ¡Llegaste a 15 puntos!</h2>
+    <div style="color:#bfe9e5;margin-bottom:14px">Elige a quién le robas <b style="color:var(--gold)">${m.amount} pts</b>:</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${m.players.map(pl => `<button class="steal-target" data-n="${esc(pl.name)}">
+        <span class="steal-dot" style="background:${pl.color}"></span><span>${pl.emoji}</span>
+        <b>${esc(pl.name)}</b><span class="steal-pts">${pl.score} pts</span></button>`).join("")}
+    </div>
+    <div class="hint" style="margin-top:12px">⏳ Si no eliges en 20 s, se robará automáticamente al que va ganando</div>
+  </div>`;
+  document.body.appendChild(d);
+  d.querySelectorAll(".steal-target").forEach(b => b.onclick = () => {
+    PlayerGame.client.send({ t: "stealpick", victim: b.dataset.n });
+    closeStealPanel();
+    toast("🔥 Robando a " + b.dataset.n + "...");
+  });
+  setTimeout(closeStealPanel, 21000);   // respaldo por si el evento no llega
+}
+function closeStealPanel() { const el = document.getElementById("steal-panel"); if (el) el.remove(); }
+
 function renderStealToast(m) {
   const t = document.getElementById("p-steal");
   if (!t) return;
@@ -310,7 +391,7 @@ function renderPlayerScores(scores, target) {
   const mine = scores.filter(p => p.name === PlayerGame.me.name);
   const won = mine.length && mine[0].score >= target;
   box.innerHTML = mine.map(p => `<div class="sb-row ${won?'leader':''}">
-      <span class="dot" style="background:${p.color}"></span><span>${p.emoji}</span>
+      <span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
       <b>${esc(p.name)}</b>
       ${won?'<span class="badge win">🏆 ¡LLEGASTE A LA META!</span>':''}
       <span class="pts">${p.score} pts</span></div>`).join("")
@@ -327,7 +408,7 @@ function renderPlayerEnd(m) {
     <div class="scoreboard" style="max-width:420px;margin:18px auto;text-align:left">
       ${m.scores.map((p,i)=>`<div class="sb-row ${i===0?'leader':''}">
         <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'🎵'}</span>
-        <span class="dot" style="background:${p.color}"></span><span>${p.emoji}</span>
+        <span class="dot" style="background:${p.color}"></span>${avatarHtml(p)}
         <b>${esc(p.name)}</b><span class="pts">${p.score} pts</span></div>`).join("")}
     </div>
     <button class="btn" onclick="goHome()" style="max-width:300px;margin:0 auto">🏠 Volver al inicio</button>
