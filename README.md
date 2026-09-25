@@ -79,7 +79,7 @@ MikuQuiz cuenta con dos modalidades dinámicas adaptadas al ritmo de cada sala, 
 >[link](https://github.com/k4927789-wq/Preguntas)
 
 >## ImMiku
->[web](https://kevinreyes-garcia-rgb.github.io/ImMiku/)
+>[web](https://kg89.freedev.app/?i=1)
 
 >## MikuChat
 >[Chat](https://kevinreyes-garcia-rgb.github.io/MikuChat/)
